@@ -106,3 +106,48 @@ def dashboard_summary():
         "SELECT behaviour_type, COUNT(*) c FROM events GROUP BY behaviour_type")}
     conn.close()
     return {"total_events": total, "by_risk_level": by_risk, "by_behaviour": by_behaviour}
+from fastapi import Body
+
+@app.post("/assistant/query")
+def assistant_query(payload: dict = Body(...)):
+    question = payload.get("question", "").lower()
+
+    conn = get_db()
+    events = [dict(r) for r in conn.execute("SELECT * FROM events ORDER BY risk_score DESC").fetchall()]
+    conn.close()
+
+    if not events:
+        return {"answer": "No events have been recorded yet - upload and analyze a video first."}
+
+    if "why" in question or "explain" in question:
+        top = events[0]
+        return {"answer": f"The highest-risk event was a {top['risk_level']} risk {top['behaviour_type']} "
+                           f"involving a {top['object_type']} at {top['timestamp_seconds']:.1f}s (score {top['risk_score']}). "
+                           f"{top['explanation']} Recommended action: {top['recommended_action']}"}
+
+    if "common" in question or "most" in question:
+        from collections import Counter
+        counts = Counter(e["behaviour_type"] for e in events)
+        top_behaviour, count = counts.most_common(1)[0]
+        return {"answer": f"The most common behaviour was '{top_behaviour}', occurring {count} time(s) "
+                           f"out of {len(events)} total events."}
+
+    if "high" in question or "critical" in question:
+        severe = [e for e in events if e["risk_level"] in ("high", "critical")]
+        if not severe:
+            return {"answer": "No high or critical risk events were detected in this footage."}
+        lines = [f"- {e['risk_level'].upper()} {e['behaviour_type']} at {e['timestamp_seconds']:.1f}s: {e['explanation']}"
+                 for e in severe[:5]]
+        return {"answer": f"Found {len(severe)} high/critical event(s):\n" + "\n".join(lines)}
+
+    if "action" in question or "recommend" in question or "corrective" in question:
+        actions = list(set(e["recommended_action"] for e in events))
+        return {"answer": "Recommended actions based on detected events: " + " | ".join(actions)}
+
+    total = len(events)
+    by_level = {}
+    for e in events:
+        by_level[e["risk_level"]] = by_level.get(e["risk_level"], 0) + 1
+    summary = ", ".join(f"{v} {k}" for k, v in by_level.items())
+    return {"answer": f"Detected {total} total event(s) this session: {summary}. "
+                       f"Ask me about the most common behaviour, high-risk events, or recommended actions."}
