@@ -1,5 +1,7 @@
 import { useState, useRef } from 'react'
 
+const API_BASE = 'https://loadguard-ai.onrender.com'
+
 const RISK_COLOR = { low: '#4ADE80', medium: '#F5D023', high: '#F5821F', critical: '#EF4444' }
 
 function scoreColor(score) {
@@ -32,7 +34,7 @@ function App() {
 
   async function refreshVideos() {
     try {
-      const res = await fetch('http://127.0.0.1:8000/videos')
+      const res = await fetch(`${API_BASE}/videos`)
       setVideos(await res.json())
     } catch {
       // non-fatal, scorecard just won't update
@@ -48,14 +50,14 @@ function App() {
     formData.append('file', selectedFile)
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/videos/upload', { method: 'POST', body: formData })
+      const res = await fetch(`${API_BASE}/videos/upload`, { method: 'POST', body: formData })
       const data = await res.json()
       setVideoFilename(selectedFile.name)
       setStatus(`Analysis complete — ${data.events_found} risk event(s) identified · Safety score ${data.safety_score}`)
 
       const [eventsRes, summaryRes] = await Promise.all([
-        fetch('http://127.0.0.1:8000/events'),
-        fetch('http://127.0.0.1:8000/dashboard/summary'),
+        fetch(`${API_BASE}/events`),
+        fetch(`${API_BASE}/dashboard/summary`),
       ])
       setEvents(await eventsRes.json())
       setSummary(await summaryRes.json())
@@ -72,7 +74,7 @@ function App() {
     setMessages((m) => [...m, { role: 'user', text: q }])
     setQuestion('')
     try {
-      const res = await fetch('http://127.0.0.1:8000/assistant/query', {
+      const res = await fetch(`${API_BASE}/assistant/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q }),
@@ -142,7 +144,7 @@ function App() {
                 controls
                 width="100%"
                 style={{ borderRadius: 8, border: '1px solid #272B33' }}
-                src={`http://127.0.0.1:8000/uploads/${videoFilename}`}
+                src={`${API_BASE}/uploads/${videoFilename}`}
               />
             </section>
           )}
@@ -177,7 +179,7 @@ function App() {
             {events.map((e) => (
               <div key={e.id} style={{ background: '#1D2026', border: '1px solid #272B33', borderRadius: 8, padding: 14, marginBottom: 10, display: 'flex', gap: 14 }}>
                 {e.evidence_path && (
-                  <img src={`http://127.0.0.1:8000${e.evidence_path}`} alt="" width={120} height={75}
+                  <img src={`${API_BASE}${e.evidence_path}`} alt="" width={120} height={75}
                        style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid #272B33' }} />
                 )}
                 <div style={{ flex: 1 }}>
