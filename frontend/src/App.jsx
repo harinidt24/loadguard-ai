@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 
 const API_BASE = 'https://loadguard-ai.onrender.com'
 
@@ -11,15 +11,6 @@ function scoreColor(score) {
   return '#EF4444'
 }
 
-function formatDateTime(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return d.toLocaleString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  })
-}
-
 function App() {
   const [selectedFile, setSelectedFile] = useState(null)
   const [status, setStatus] = useState('')
@@ -29,8 +20,6 @@ function App() {
   const [videos, setVideos] = useState([])
   const [messages, setMessages] = useState([])
   const [question, setQuestion] = useState('')
-  const [videoFilename, setVideoFilename] = useState(null)
-  const videoRef = useRef(null)
 
   async function refreshVideos() {
     try {
@@ -51,8 +40,11 @@ function App() {
 
     try {
       const res = await fetch(`${API_BASE}/videos/upload`, { method: 'POST', body: formData })
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(`Server responded ${res.status}: ${text}`)
+      }
       const data = await res.json()
-      setVideoFilename(selectedFile.name)
       setStatus(`Analysis complete — ${data.events_found} risk event(s) identified · Safety score ${data.safety_score}`)
 
       const [eventsRes, summaryRes] = await Promise.all([
@@ -63,7 +55,7 @@ function App() {
       setSummary(await summaryRes.json())
       await refreshVideos()
     } catch (err) {
-      setStatus('Processing failed — check backend terminal')
+      setStatus(`Processing failed — ${err.message}`)
     } finally {
       setProcessing(false)
     }
@@ -83,12 +75,6 @@ function App() {
       setMessages((m) => [...m, { role: 'assistant', text: data.answer }])
     } catch {
       setMessages((m) => [...m, { role: 'assistant', text: 'Could not reach the assistant.' }])
-    }
-  }
-  function jumpToIncident(timestampSeconds) {
-    if (videoRef.current) {
-      videoRef.current.currentTime = timestampSeconds
-      videoRef.current.play()
     }
   }
 
@@ -137,17 +123,6 @@ function App() {
               ))}
             </section>
           )}
-          {videoFilename && (
-            <section style={{ marginBottom: 20 }}>
-              <video
-                ref={videoRef}
-                controls
-                width="100%"
-                style={{ borderRadius: 8, border: '1px solid #272B33' }}
-                src={`${API_BASE}/uploads/${videoFilename}`}
-              />
-            </section>
-          )}
 
           {events.length > 0 && (
             <section style={{ background: '#1D2026', border: '1px solid #272B33', borderRadius: 8, padding: '16px 20px', marginBottom: 20 }}>
@@ -158,7 +133,6 @@ function App() {
                   const leftPercent = (e.timestamp_seconds / maxTime) * 96 + 2
                   return (
                     <div key={e.id} title={`${e.behaviour_type} at ${e.timestamp_seconds.toFixed(1)}s`}
-                    onClick={() => jumpToIncident(e.timestamp_seconds)}
                       style={{
                         position: 'absolute', left: `${leftPercent}%`, top: 8, width: 10, height: 24,
                         borderRadius: 3, background: RISK_COLOR[e.risk_level], cursor: 'pointer',
