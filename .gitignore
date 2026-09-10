@@ -14,3 +14,4 @@ backend/uploads/
 backend/loadguard.db
 backend/evidence/
 backend/*.pt
+backend/gemini_key.txt

@@ -109,10 +109,10 @@ def run_behaviour_rules(tracks):
                 ang = min(ang, 360 - ang)
                 if abs(pv[1]) > 80 and sa < sb * 0.6:
                     raw.append({"behaviour_type": "drop", "t": pts[i]["t"], "class_name": pts[i]["class_name"],
-                                "confidence": min(0.95, pts[i]["conf"] + 0.1), "meta": {}})
+                                "confidence": min(0.95, pts[i]["conf"] + 0.1), "meta": {}, "point": pts[i]})
                 elif sb > 150 or (sb > 100 and ang > 60):
                     raw.append({"behaviour_type": "throw", "t": pts[i]["t"], "class_name": pts[i]["class_name"],
-                                "confidence": min(0.9, pts[i]["conf"]), "meta": {}})
+                                "confidence": min(0.9, pts[i]["conf"]), "meta": {}, "point": pts[i]})
             window_start = 0
             for i in range(1, len(pts)):
                 vx, vy = _velocity(pts[i - 1], pts[i])
@@ -120,7 +120,7 @@ def run_behaviour_rules(tracks):
                     dur = pts[i]["t"] - pts[window_start]["t"]
                     if dur >= THRESHOLDS["drag_min_duration_seconds"]:
                         raw.append({"behaviour_type": "drag", "t": pts[i]["t"], "class_name": pts[i]["class_name"],
-                                    "confidence": min(0.85, pts[i]["conf"]), "meta": {"dur": round(dur, 1)}})
+                                    "confidence": min(0.85, pts[i]["conf"]), "meta": {"dur": round(dur, 1)}, "point": pts[i]})
                         window_start = i
                 else:
                     window_start = i
@@ -150,11 +150,10 @@ def run_pipeline(video_path, evidence_dir):
         for d in dets:
             x1, y1, x2, y2 = d["bbox"]
             tracks[d["track_id"]].append({
-                "t": t, "cx": (x1 + x2) / 2, "cy": (y1 + y2) / 2,
+                "t": t, "cx": (x1 + x2) / 2, "cy": (y1 + y2) / 2, "bbox": (x1, y1, x2, y2),
                 "class_name": d["class_name"], "conf": d["confidence"],
             })
         frames_by_time[round(t, 1)] = frame.copy()
-
        
     raw_events = run_behaviour_rules(tracks)
     events = []
@@ -163,6 +162,13 @@ def run_pipeline(video_path, evidence_dir):
         frame = frames_by_time.get(round(scored["timestamp_seconds"], 1))
         evidence_path = None
         if frame is not None:
+            frame = frame.copy()
+            bbox = raw.get("point", {}).get("bbox")
+            if bbox:
+                x1, y1, x2, y2 = [int(v) for v in bbox]
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 165, 255), 2)
+                cv2.putText(frame, scored["behaviour_type"].upper(), (x1, max(y1 - 8, 15)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
             fname = f"event_{i}.jpg"
             cv2.imwrite(str(evidence_dir / fname), frame)
             evidence_path = f"/evidence/{fname}"
