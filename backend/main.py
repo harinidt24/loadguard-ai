@@ -6,14 +6,18 @@ from pathlib import Path
 from pipeline import run_pipeline
 from google import genai
 
+import os
+
 def load_gemini_client():
-    try:
-        key = Path("gemini_key.txt").read_text().strip()
-        if not key:
+    key = os.environ.get("GEMINI_API_KEY")
+    if not key:
+        try:
+            key = Path("gemini_key.txt").read_text().strip()
+        except FileNotFoundError:
             return None
-        return genai.Client(api_key=key)
-    except FileNotFoundError:
+    if not key:
         return None
+    return genai.Client(api_key=key)
 
 gemini_client = load_gemini_client()
 
